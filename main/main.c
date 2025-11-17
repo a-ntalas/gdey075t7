@@ -33,6 +33,12 @@ void sendData(uint8_t data,spi_device_handle_t handle)
     gpio_set_level(DC, 1);
     spi_writeBytes(handle, 1, buff);
     gpio_set_level(CS, 1);
+    // gpio_set_level(CS, 1);
+    // gpio_set_level(CS, 1);
+    // gpio_set_level(CS, 1);
+    // gpio_set_level(CS, 1);
+    // gpio_set_level(CS, 1);
+    
 }
 
 void busy()
@@ -62,6 +68,8 @@ void init_display(spi_device_handle_t handle)
     sendData(0x28, handle);
     sendData(0x17, handle);
     sendCmd(0x04, handle); 
+
+    vTaskDelay(100/ portTICK_PERIOD_MS); 
     busy();
  
     sendCmd(0X00, handle); 
@@ -90,8 +98,7 @@ void refreshScreen(spi_device_handle_t handle)
 }
 
 //Clear screen display
-void clearScreen(spi_device_handle_t handle)
-{
+void clearScreen(spi_device_handle_t handle){
   unsigned int i;
   //Write Data
   sendCmd(0x10, handle);      
@@ -100,20 +107,72 @@ void clearScreen(spi_device_handle_t handle)
     sendData(0x00, handle);  
   }
   sendCmd(0x13, handle);      
+
+//   uint8_t buffer[480*800];
+//   for(int i = 0 ; i < 480 ; i++)
+//   {
+//     for(int j = 0 ; j < 800 ; j++)
+//     {
+//         buffer[800*i+j] = 1;
+//     }
+//   }
+
+    uint8_t compressor[EPD_ARRAY];
+    uint8_t counter = 0;
+    uint16_t x = 0, y = 0;
+    for(int i = 0 ; i < EPD_ARRAY ; i++)
+    {
+        counter = 0;
+    // if(i%2)
+    // {
+        for(int j = 0 ; j < 8 ; j++)
+        {
+            // x = i % 100 + j;
+            // y = i / 100;
+            counter = (counter<<1) + 1;
+        }
+        compressor[i] = counter;
+    // }
+    // else 
+    // {
+    //     counter = 0x00;
+    //     compressor[i] = counter;
+    // }
+        // if ((i & 0x3FF) == 0) ESP_LOGI(TAG, "i = %d, val = %d", i, compressor[i]);
+    }
+    
+//   for(i=0;i<EPD_ARRAY;i++)  
+//   {
+//     ESP_LOGI(TAG, "i = %d, val = %d", i, compressor[i]);
+//   }
   for(i=0;i<EPD_ARRAY;i++)       
   {
-    uint8_t num = 0;
-    if (i&0x8) num = 1;
-    sendData(num, handle);  
+    // uint8_t num = 0x0;
+    // if ((((i % 100) <= 50) & (i<=EPD_ARRAY/2)) || (((i % 100) > 50) & (i>EPD_ARRAY/2)) ) 
+    // {
+    //     num = 0xff;
+    // }  
+    // sendData(num, handle);
+    sendData(compressor[i], handle);
+    if ((i & 0xFFF) == 0) ESP_LOGI(TAG, "i = %d, val = %d", i, compressor[i]);
   }
-   refreshScreen(handle);   
+  refreshScreen(handle); 
+}
+
+void calc_array(uint8_t *buffer)
+{
+    for(int i = 0 ; i < EPD_ARRAY ; i++)
+    {
+        buffer[i] = ((i & 7) == 0) ? 0xff : 0x0;
+    }
 }
 
 
 void app_main(void)
 {
-    // ESP_LOGI(TAG, "ESP-IDF bare project started.");
+    ESP_LOGI(TAG, "ESP-IDF bare project started.");
     spi_device_handle_t gdey075t7;
+    // esp_task_wdt_delete(xTaskGetCurrentTaskHandle());
 
     spi_bus_config_t cfg = {
         .mosi_io_num = SDA,
@@ -124,11 +183,9 @@ void app_main(void)
         .max_transfer_sz = 4096
     };
     spi_bus_initialize(SPI2_HOST, &cfg, SPI_DMA_CH_AUTO);
-    // spi_begin(SDA, MISO, SCK, 64);
-    // spi_addDevice(2, 1000000, CS, &gdey075t70;75t7);
     
     spi_device_interface_config_t devcfg = {
-        .clock_speed_hz = 1 * 1000 * 1000,
+        .clock_speed_hz = 2 * 1000 * 1000,
         .mode = 0,
         .spics_io_num = -1,
         .queue_size = 1,
@@ -136,10 +193,7 @@ void app_main(void)
         .address_bits = 0
     };
     spi_bus_add_device(SPI2_HOST, &devcfg, &gdey075t7);
-    // spi_addDevice(2, 1000000, -1, &gdey075t7);
 
-    // gpio_set_direction(SDA, GPIO_MODE_OUTPUT);
-    // gpio_set_direction(SCK, GPIO_MODE_OUTPUT);
     gpio_set_direction(CS, GPIO_MODE_OUTPUT);
     gpio_set_direction(DC, GPIO_MODE_OUTPUT);
     gpio_set_direction(RES, GPIO_MODE_OUTPUT);
@@ -150,8 +204,11 @@ void app_main(void)
     gpio_set_level(RES, 1);
     vTaskDelay(10 / portTICK_PERIOD_MS);  
     
+    // uint8_t buffer[EPD_ARRAY];
+    // calc_array(buffer);
+    // int num = sizeof(int);
     init_display(gdey075t7);
-    
+    // ESP_LOGI(TAG, "n = %d\n", num);
     clearScreen(gdey075t7);
 
     while (1) {
